@@ -3,9 +3,9 @@ import qbs
 CppApplication {
     consoleApplication: true
     files: [
+        "fullstatemachine.cpp",
+        "fullstatemachine.hpp",
         "main.cpp",
-        "statemachine.cpp",
-        "statemachine.hpp",
     ]
 
     cpp.warningLevel: "all"

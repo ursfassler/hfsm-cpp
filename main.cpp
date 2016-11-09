@@ -1,19 +1,19 @@
 #include <cstddef>
 #include <stdexcept>
 
-void* operator new(std::size_t)
-{
-  throw std::runtime_error("do not allocate memory");
-}
+//void* operator new(std::size_t)
+//{
+//  throw std::runtime_error("do not allocate memory");
+//}
 
-void* operator new[](std::size_t)
-{
-  throw std::runtime_error("do not allocate memory");
-}
+//void* operator new[](std::size_t)
+//{
+//  throw std::runtime_error("do not allocate memory");
+//}
 
 #include <cstdio>
 
-#include "statemachine.hpp"
+#include "fullstatemachine.hpp"
 
 
 
@@ -21,7 +21,7 @@ class PrintTransition :
     public SimpleTransition
 {
   public:
-    PrintTransition(State* source_, State* context_, State* destination_, const Event* event_, const char* name_) :
+    PrintTransition(State& source_, State& context_, State& destination_, const Event* event_, const char* name_) :
       SimpleTransition{source_, context_, destination_, event_},
       name{name_}
     {
@@ -37,9 +37,11 @@ class PrintTransition :
 };
 
 class FlashState :
-    public LeafState<0>
+    public LeafState
 {
   public:
+    using LeafState::LeafState;
+
     void entry()
     {
       printf("%s\n", "led on");
@@ -53,9 +55,10 @@ class FlashState :
 };
 
 class WaitState :
-    public LeafState<1>
+    public LeafState
 {
   public:
+    using LeafState::LeafState;
 
     void entry()
     {
@@ -88,8 +91,8 @@ class WaitTransition :
     public AbstractTransition
 {
   public:
-    WaitTransition(State* source_, WaitState &context_, State* destination_) :
-      AbstractTransition{source_, &context_, destination_},
+    WaitTransition(State& source_, WaitState &context_, State& destination_) :
+      AbstractTransition{source_, context_, destination_},
       contextState{context_}
     {
     }
@@ -112,26 +115,26 @@ class WaitTransition :
 
 int main()
 {
-  LeafState<0> Off{};
   FlashState Flash{};
   WaitState Wait{};
-  CompositeState<2, 2> On{};
-  Hfsm<2, 2> hfsm{};
 
+  LeafState Off{};
+  CompositeState On{};
   On.addState(&Flash);
   On.addState(&Wait);
 
+  Hfsm hfsm{};
   hfsm.addState(&Off);
   hfsm.addState(&On);
 
 
-  const PrintTransition switchOn{&Off, &hfsm, &On, &toggle, "off -> on"};
-  const PrintTransition switchOff{&On, &hfsm, &Off, &toggle, "on -> off"};
+  const PrintTransition switchOn{Off, hfsm, On, &toggle, "off -> on"};
+  const PrintTransition switchOff{On, hfsm, Off, &toggle, "on -> off"};
 
-  const PrintTransition turnLedOff{&Flash, &On, &Wait, &tick, "flash -> wait"};
-  const PrintTransition turnLedOn{&Wait, &On, &Flash, &tick, "wait -> flash"};
+  const PrintTransition turnLedOff{Flash, On, Wait, &tick, "flash -> wait"};
+  const PrintTransition turnLedOn{Wait, On, Flash, &tick, "wait -> flash"};
 
-  const WaitTransition waitForZero{&Wait, Wait, &Wait};
+  const WaitTransition waitForZero{Wait, Wait, Wait};
 
 
   hfsm.initialize();
