@@ -17,40 +17,12 @@ void* operator new[](std::size_t)
 
 
 
-const Transition* firstTransitionTopDown(State* state, const Event *event, const State* active)
-{
-  if (state == nullptr)
-  {
-    return nullptr;
-  }
-
-  const auto transition = firstTransitionTopDown(state->parent(), event, active);
-  if (transition)
-  {
-    return transition;
-  }
-
-  return state->transitionFor(event, active);
-}
-
-State* handle(State* active, const Event *event)
-{
-  const auto transition = firstTransitionTopDown(active, event, active);
-  if (transition)
-  {
-    transition->handle(event);
-    return transition->destination->initial();
-  }
-
-  return active;
-}
-
 class PrintTransition :
-    public Transition
+    public SimpleTransition
 {
   public:
-    PrintTransition(State* source_, State* destination_, Event* event_, const char* name_) :
-      Transition{source_, destination_, event_},
+    PrintTransition(State* source_, State* context_, State* destination_, const Event* event_, const char* name_) :
+      SimpleTransition{source_, context_, destination_, event_},
       name{name_}
     {
     }
@@ -64,47 +36,113 @@ class PrintTransition :
 
 };
 
+class FlashState :
+    public LeafState<0>
+{
+  public:
+    void entry()
+    {
+      printf("%s\n", "led on");
+    }
+
+    void exit()
+    {
+      printf("%s\n", "led off");
+    }
+
+};
+
+class WaitState :
+    public LeafState<1>
+{
+  public:
+
+    void entry()
+    {
+      counterValue = 1;
+    }
+
+    bool isZero() const
+    {
+      return counterValue == 0;
+    }
+
+    void decCounter()
+    {
+      if (counterValue != 0)
+      {
+        counterValue--;
+      }
+    }
+
+  private:
+    uint8_t counterValue{};
+
+};
+
+static const Event toggle{};
+static const Event tick{};
+
+
+class WaitTransition :
+    public AbstractTransition
+{
+  public:
+    WaitTransition(State* source_, WaitState &context_, State* destination_) :
+      AbstractTransition{source_, &context_, destination_},
+      contextState{context_}
+    {
+    }
+
+    bool canHandle(const Event* event) const override
+    {
+      return (event == &tick) && !contextState.isZero();
+    }
+
+    void handle(const Event*) const override
+    {
+      contextState.decCounter();
+      printf("%s\n", "wait -> wait");
+    }
+
+  private:
+    WaitState &contextState;
+
+};
 
 int main()
 {
-  Event toggle{};
-  Event tick{};
-
   LeafState<0> Off{};
-  LeafState<0> Flash{};
-  LeafState<0> Wait{};
+  FlashState Flash{};
+  WaitState Wait{};
   CompositeState<2, 2> On{};
-  CompositeState<2, 2> Top{};
-
-  const PrintTransition switchOn{&Off, &On, &toggle, "switch on"};
-  const PrintTransition switchOff{&On, &Off, &toggle, "switch off"};
-  Top.addTransition(&switchOn);
-  Top.addTransition(&switchOff);
-
-  const PrintTransition turnLedOff{&Flash, &Wait, &tick, "off"};
-  const PrintTransition turnLedOn{&Wait, &Flash, &tick, "on"};
-  On.addTransition(&turnLedOff);
-  On.addTransition(&turnLedOn);
+  Hfsm<2, 2> hfsm{};
 
   On.addState(&Flash);
   On.addState(&Wait);
 
-  Top.addState(&Off);
-  Top.addState(&On);
+  hfsm.addState(&Off);
+  hfsm.addState(&On);
 
 
-  Top.initialize(nullptr);
+  const PrintTransition switchOn{&Off, &hfsm, &On, &toggle, "off -> on"};
+  const PrintTransition switchOff{&On, &hfsm, &Off, &toggle, "on -> off"};
+
+  const PrintTransition turnLedOff{&Flash, &On, &Wait, &tick, "flash -> wait"};
+  const PrintTransition turnLedOn{&Wait, &On, &Flash, &tick, "wait -> flash"};
+
+  const WaitTransition waitForZero{&Wait, Wait, &Wait};
 
 
-  State* active = Top.initial();
+  hfsm.initialize();
 
-  active = handle(active, &tick);
-  active = handle(active, &toggle);
-  active = handle(active, &tick);
-  active = handle(active, &tick);
-  active = handle(active, &tick);
-  active = handle(active, &tick);
-  active = handle(active, &toggle);
+  hfsm.handle(&tick);
+  hfsm.handle(&toggle);
+  hfsm.handle(&tick);
+  hfsm.handle(&tick);
+  hfsm.handle(&tick);
+  hfsm.handle(&toggle);
+  hfsm.handle(&tick);
 
 
   return 0;

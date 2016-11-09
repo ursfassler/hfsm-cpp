@@ -16,8 +16,12 @@ class State
     virtual void initialize(State* parent) = 0;
     virtual State* initial() = 0;
     virtual State* parent() const = 0;
-    virtual bool isInPathTo(const State* active) = 0;
+    virtual bool isAncestorOf(const State* active) = 0;
     virtual const Transition* transitionFor(const Event* event, const State *active) = 0;
+    virtual void addTransition(const Transition* item) = 0;
+
+    virtual void entry() = 0;
+    virtual void exit() = 0;
 
 };
 
@@ -26,14 +30,41 @@ class Transition
   public:
     virtual ~Transition() = default;
 
-    Transition(State* source_, State* destination_, Event* event_);
+    virtual State* source() const = 0;
+    virtual State* destination() const = 0;
+    virtual bool canHandle(const Event* event) const = 0;
+    virtual void handle(const Event* event) const = 0;
 
-    State* source{};
-    State* destination{};
-    Event* event{};
+};
 
-    bool canHandle(const Event* event) const;
-    virtual void handle(const Event* event) const;
+class AbstractTransition :
+    public Transition
+{
+  public:
+    AbstractTransition(State* source, State* context, State* destination);
+
+    State *source() const override;
+    State *destination() const override;
+
+    void handle(const Event* event) const override;
+
+  private:
+    State* sourceState{};
+    State* destinationState{};
+
+};
+
+class SimpleTransition :
+    public AbstractTransition
+{
+  public:
+    SimpleTransition(State* source_, State* context, State* destination_, const Event* event_);
+
+    bool canHandle(const Event* event) const override;
+
+  private:
+    State* contextState{};
+    const Event* event{};
 
 };
 
@@ -42,6 +73,14 @@ class BaseState :
     public State
 {
   public:
+    void entry() override
+    {
+    }
+
+    void exit() override
+    {
+    }
+
     void initialize(State* parent) override
     {
       parentState = parent;
@@ -51,7 +90,7 @@ class BaseState :
     {
       for (const Transition *itr : transition)
       {
-        if (itr->source->isInPathTo(active) && itr->canHandle(event))
+        if (itr->source()->isAncestorOf(active) && itr->canHandle(event))
         {
           return itr;
         }
@@ -60,7 +99,7 @@ class BaseState :
       return nullptr;
     }
 
-    bool isInPathTo(const State* active) override
+    bool isAncestorOf(const State* active) override
     {
       if (!active)
       {
@@ -72,7 +111,7 @@ class BaseState :
         return true;
       }
 
-      return isInPathTo(active->parent());
+      return isAncestorOf(active->parent());
     }
 
     State *parent() const override
@@ -80,7 +119,7 @@ class BaseState :
       return parentState;
     }
 
-    void addTransition(const Transition* item)
+    void addTransition(const Transition* item) override
     {
       for (const Transition* &itr : transition)
       {
@@ -152,5 +191,31 @@ class LeafState :
     {
       return this;
     }
+
+};
+
+State* handle(State* active, const Event *event);
+
+
+template<std::size_t TransitionCount, std::size_t SubstateCount>
+class Hfsm :
+    public CompositeState<TransitionCount, SubstateCount>
+{
+  public:
+    using CompositeState<TransitionCount, SubstateCount>::CompositeState;
+
+    void initialize()
+    {
+      CompositeState<TransitionCount, SubstateCount>::initialize(nullptr);
+      active = CompositeState<TransitionCount, SubstateCount>::initial();
+    }
+
+    void handle(const Event* event)
+    {
+      active = ::handle(active, event);
+    }
+
+  private:
+    State* active{};
 
 };
