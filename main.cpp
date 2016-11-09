@@ -1,67 +1,41 @@
 #include <cstddef>
-#include <stdexcept>
+#include <string>
+#include <iostream>
 
-//void* operator new(std::size_t)
-//{
-//  throw std::runtime_error("do not allocate memory");
-//}
-
-//void* operator new[](std::size_t)
-//{
-//  throw std::runtime_error("do not allocate memory");
-//}
-
-#include <cstdio>
-
-#include "fullstatemachine.hpp"
+#include "debug.hpp"
+#include "hfsmprint.hpp"
 
 
-
-class PrintTransition :
-    public SimpleTransition
-{
-  public:
-    PrintTransition(State& source_, State& context_, State& destination_, const Event* event_, const char* name_) :
-      SimpleTransition{source_, context_, destination_, event_},
-      name{name_}
-    {
-    }
-
-    const char* name{""};
-
-    void handle(const Event*) const override
-    {
-      printf("%s\n", name);
-    }
-
-};
 
 class FlashState :
-    public LeafState
+    public DebugState
 {
   public:
-    using LeafState::LeafState;
+    using DebugState::DebugState;
 
     void entry()
     {
-      printf("%s\n", "led on");
+      DebugState::entry();
+      std::cout << "led on" << std::endl;
     }
 
     void exit()
     {
-      printf("%s\n", "led off");
+      std::cout << "led off" << std::endl;
+      DebugState::exit();
     }
 
 };
 
 class WaitState :
-    public LeafState
+    public DebugState
 {
   public:
-    using LeafState::LeafState;
+    using DebugState::DebugState;
 
     void entry()
     {
+      DebugState::entry();
       counterValue = 1;
     }
 
@@ -88,24 +62,24 @@ static const Event tick{};
 
 
 class WaitTransition :
-    public AbstractTransition
+    public DebugTransition
 {
   public:
-    WaitTransition(State& source_, WaitState &context_, State& destination_) :
-      AbstractTransition{source_, context_, destination_},
+    WaitTransition(DebugState& source_, WaitState &context_, DebugState& destination_, const Event *event_) :
+      DebugTransition{source_, destination_, event_},
       contextState{context_}
     {
     }
 
     bool canHandle(const Event* event) const override
     {
-      return (event == &tick) && !contextState.isZero();
+      return DebugTransition::canHandle(event) && !contextState.isZero();
     }
 
-    void handle(const Event*) const override
+    void execute(const Event* event) const override
     {
+      DebugTransition::execute(event);
       contextState.decCounter();
-      printf("%s\n", "wait -> wait");
     }
 
   private:
@@ -115,37 +89,69 @@ class WaitTransition :
 
 int main()
 {
-  FlashState Flash{};
-  WaitState Wait{};
+  // construct states
 
-  LeafState Off{};
-  CompositeState On{};
+  FlashState Flash{"Flash"};
+  WaitState Wait{"Wait"};
+
+  DebugState Off{"Off"};
+  DebugState On{"On"};
   On.addState(&Flash);
   On.addState(&Wait);
 
-  Hfsm hfsm{};
-  hfsm.addState(&Off);
-  hfsm.addState(&On);
+  DebugState Top{"Top"};
+  Top.addState(&Off);
+  Top.addState(&On);
+
+  // construct transitions
+
+  const DebugTransition switchOn{Off, On, &toggle};
+  const DebugTransition switchOff{On, Off, &toggle};
+  Top.addTransition(&switchOn);
+  Top.addTransition(&switchOff);
+
+  const DebugTransition turnLedOff{Flash, Wait, &tick};
+  const DebugTransition turnLedOn{Wait, Flash, &tick};
+  On.addTransition(&turnLedOff);
+  On.addTransition(&turnLedOn);
+
+  const WaitTransition waitForZero{Wait, Wait, Wait, &tick};
+  Wait.addTransition(&waitForZero);
 
 
-  const PrintTransition switchOn{Off, hfsm, On, &toggle, "off -> on"};
-  const PrintTransition switchOff{On, hfsm, Off, &toggle, "on -> off"};
+  // print structure
 
-  const PrintTransition turnLedOff{Flash, On, Wait, &tick, "flash -> wait"};
-  const PrintTransition turnLedOn{Wait, On, Flash, &tick, "wait -> flash"};
+  HfsmPrint printer{Top.initial()};
 
-  const WaitTransition waitForZero{Wait, Wait, Wait};
+  printer.printStates(std::cout);
+  printer.printTransitions(std::cout);
+
+  std::cout << std::endl << std::endl;
 
 
-  hfsm.initialize();
+  // run the state machine
 
-  hfsm.handle(&tick);
-  hfsm.handle(&toggle);
-  hfsm.handle(&tick);
-  hfsm.handle(&tick);
-  hfsm.handle(&tick);
-  hfsm.handle(&toggle);
-  hfsm.handle(&tick);
+  {
+    Hfsm hfsm{Top.initial()};
+
+    std::cout << "----" << std::endl;
+    hfsm.handle(&tick);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&toggle);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&tick);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&tick);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&tick);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&toggle);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&tick);
+    std::cout << "----" << std::endl;
+    hfsm.handle(&toggle);
+    std::cout << "----" << std::endl;
+  }
 
 
   return 0;

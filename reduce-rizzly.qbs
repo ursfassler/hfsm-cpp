@@ -3,9 +3,15 @@ import qbs
 CppApplication {
     consoleApplication: true
     files: [
-        "fullstatemachine.cpp",
-        "fullstatemachine.hpp",
+        "debug.cpp",
+        "debug.hpp",
+        "hfsm.cpp",
+        "hfsm.hpp",
+        "hfsmprint.cpp",
+        "hfsmprint.hpp",
         "main.cpp",
+        "simple.hpp",
+        "types.hpp",
     ]
 
     cpp.warningLevel: "all"
