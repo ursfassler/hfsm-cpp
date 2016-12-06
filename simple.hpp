@@ -5,14 +5,9 @@
 #include <vector>
 
 
-class Event
-{
-};
-
-
-template<typename T>
+template<typename E, typename T>
 class SimpleGenericState :
-    public State
+    public State<E>
 {
   public:
     void entry() override
@@ -28,32 +23,32 @@ class SimpleGenericState :
       return transitions.size();
     }
 
-    const Transition *transition(std::size_t index) const override
+    const Transition<E> *transition(std::size_t index) const override
     {
       return transitions[index];
     }
 
-    void setParent(State* value)
+    void setParent(State<E>* value)
     {
       parentState = value;
     }
 
-    State *parent() const override
+    State<E> *parent() const override
     {
       return parentState;
     }
 
-    void addTransition(const Transition* item)
+    void addTransition(const Transition<E>* item)
     {
       transitions.push_back(item);
     }
 
-    State* initial() override
+    State<E>* initial() override
     {
       return initialState;
     }
 
-    void addState(SimpleGenericState<T> *item)
+    void addState(SimpleGenericState<E, T> *item)
     {
       if (initialState == this)
       {
@@ -63,21 +58,21 @@ class SimpleGenericState :
     }
 
   private:
-    State* parentState{nullptr};
-    State* initialState{this};
-    std::vector<const Transition*> transitions{};
+    State<E>* parentState{nullptr};
+    State<E>* initialState{this};
+    std::vector<const Transition<E>*> transitions{};
 
 };
 
 
 
 
-template<typename S>
+template<typename E, typename S>
 class SimpleGenericTransition :
-    public Transition
+    public Transition<E>
 {
   public:
-    SimpleGenericTransition(S& source, S& destination, const Event* event_) :
+    SimpleGenericTransition(S& source, S& destination, const E& event_) :
       sourceState{source},
       destinationState{destination},
       event{event_}
@@ -94,36 +89,41 @@ class SimpleGenericTransition :
       return destinationState;
     }
 
-    bool canHandle(const Event* event) const override
+    bool canHandle(const E& event) const override
     {
       return event == this->event;
     }
 
-    void execute(const Event*) const override
+    void execute(const E&) const override
     {
     }
 
   private:
     S& sourceState;
     S& destinationState;
-    const Event* event{};
+    const E event{};
 
 };
 
+template<typename E>
 class SimpleState;
+
+template<typename E>
 class SimpleTransition;
 
+template<typename E>
 class SimpleState :
-    public SimpleGenericState<SimpleTransition>
+    public SimpleGenericState<E, SimpleTransition<E>>
 {
   public:
-    using SimpleGenericState<SimpleTransition>::SimpleGenericState;
+    using SimpleGenericState<E, SimpleTransition<E>>::SimpleGenericState;
 };
 
+template<typename E>
 class SimpleTransition :
-    public SimpleGenericTransition<SimpleState>
+    public SimpleGenericTransition<E, SimpleState<E>>
 {
   public:
-    using SimpleGenericTransition<SimpleState>::SimpleGenericTransition;
+    using SimpleGenericTransition<E, SimpleState<E>>::SimpleGenericTransition;
 };
 

@@ -9,6 +9,7 @@ CppApplication {
         "hfsm.hpp",
         "hfsmprint.cpp",
         "hfsmprint.hpp",
+        "lambda.hpp",
         "main.cpp",
         "simple.hpp",
         "types.hpp",
